@@ -4,7 +4,7 @@ boolean isOdd = false;
 int LowerAddressByte = 0;
 int UpperAddressByte = 0;
 boolean startReceived = false;
-boolean processorBusGrantAck = false;
+
 double cycles;
 byte num;
 void setup() {
@@ -12,16 +12,19 @@ void setup() {
   Serial.begin(115200);
 }
 
+/*pin assignments */
+//pin 34 | Bus Grant  | input  | active low
+//pin 36 | Bus Request | output  | active low
+//pin 38 | Bus Acknowledge  | output  | active low
+//pin 40 | Write to Direct Memory  | output/tristate  | active low
+
 void loop() {
     if(cycles < 50000){
       cycles++;
     }
     else{
-       pinMode(40, INPUT);
-       digitalWrite(40, HIGH); // set memory clk output pin to semi tristate
-       digitalWrite(32, HIGH); // set buffers array to tristate.
-       digitalWrite(36, HIGH); // set Bus Master to be released. active high.
-       digitalWrite(38, LOW); // set Bus Master to be released. active high.
+      setOutputToTristate(true);
+      resetOutputToActiveHigh();
     }
 }
 
@@ -32,21 +35,20 @@ void serialEvent() {
   
   if(Serial.available()){ // Do nothing until serial input is received
     num = Serial.read(); // Get num from somewhere
-
       if(num == 115){
           startReceived = true;
            
           digitalWrite(36, LOW); //Bus Acknowledge input.
           while(digitalRead(34)){
           }
-          //digitalWrite(38, LOW); //Bus Acknowledge input.
+          digitalWrite(38, LOW); //Bus Acknowledge input.
           Serial.print('z');
       }
       else if(startReceived){
         val = getIntFromASCII(num);
-        pinMode(40, OUTPUT);
-        digitalWrite(32, LOW); //set buffers array to output.
-
+        
+        setOutputToTristate(false);
+        
         if(isOdd){
           writeToPins(val, 0); //write least significant nibble of a byte.
           latchByte("DATA", isEven(byteNumber));
@@ -90,9 +92,30 @@ void latchByte(String busType, boolean byteOrder){
     digitalWrite(pin, HIGH);
 }
 
+void resetOutputToActiveHigh(){
+   digitalWrite(36, HIGH); // set Bus Request to nonactive high.
+   digitalWrite(38, HIGH); // set Bus Acknowledge to nonactive high.
+}
+
+void setOutputToTristate(boolean isTristate){
+  if(isTristate){
+    pinMode(40, INPUT);
+    digitalWrite(40, HIGH); // set memory clk output pin to semi tristate (internal pullup resistor)
+    digitalWrite(32, HIGH); // set buffers IC's to tristate.
+  }
+  else{
+    pinMode(40, OUTPUT);  // set as output.
+    digitalWrite(40, HIGH); // set output to default high.
+    digitalWrite(32, LOW); // set buffers IC's to tristate.
+  }
+}
+
 void latchDataWord(){
+    //delay(500);
     digitalWrite(40, LOW);
+    //delay(500);
     digitalWrite(40, HIGH);
+    //delay(500);
 }
 
 boolean isEven(int x){ 
