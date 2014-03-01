@@ -17,9 +17,11 @@ void setup() {
 //pin 36 | Bus Request | output  | active low
 //pin 38 | Bus Acknowledge  | output  | active low
 //pin 40 | Write to Direct Memory  | output/tristate  | active low
+//pin 42 | Output Enable Memory | output/tristate | active low
+//pin 44 | Write Enable Memory | output/tristate | active low
 
 void loop() {
-    if(cycles < 50000){
+    if(cycles < 100000){
       cycles++;
     }
     else{
@@ -40,8 +42,10 @@ void serialEvent() {
            
           digitalWrite(36, LOW); //Bus Acknowledge input.
           while(digitalRead(34)){
+            cycles = 0;
           }
           digitalWrite(38, LOW); //Bus Acknowledge input.
+          digitalWrite(42, HIGH); //Output Enable to Memory defaults to negated high.
           Serial.print('z');
       }
       else if(startReceived){
@@ -93,29 +97,42 @@ void latchByte(String busType, boolean byteOrder){
 }
 
 void resetOutputToActiveHigh(){
-   digitalWrite(36, HIGH); // set Bus Request to nonactive high.
-   digitalWrite(38, HIGH); // set Bus Acknowledge to nonactive high.
+   digitalWrite(36, HIGH); // set Bus Request to negated high.
+   digitalWrite(38, HIGH); // set Bus Acknowledge to negated high.
+   digitalWrite(42, LOW); //OE* to Memory defaults to active low.
 }
 
 void setOutputToTristate(boolean isTristate){
   if(isTristate){
     pinMode(40, INPUT);
-    digitalWrite(40, HIGH); // set memory clk output pin to semi tristate (internal pullup resistor)
+    pinMode(42, INPUT);
+    pinMode(44, INPUT);
+    digitalWrite(40, HIGH); // set CE*(memory clk) output pin to semi tristate (internal pullup resistor)
+    digitalWrite(42, LOW); // set OE* to Memory to negated high.               (no internal pullup resistor)
+    digitalWrite(44, HIGH); // set WE* to Memory to negated high.              (internal pullup resistor)
+    
     digitalWrite(32, HIGH); // set buffers IC's to tristate.
   }
   else{
     pinMode(40, OUTPUT);  // set as output.
-    digitalWrite(40, HIGH); // set output to default high.
-    digitalWrite(32, LOW); // set buffers IC's to tristate.
+    pinMode(42, OUTPUT);  // set as output.
+    pinMode(44, OUTPUT);  // set as output.
+    digitalWrite(40, HIGH); // set CE* (memory clk) to Memory to negated high.
+    digitalWrite(42, HIGH); // set OE* to Memory to negated high.
+    digitalWrite(44, HIGH); // set WE* to Memory to negated high.
+    
+    digitalWrite(32, LOW); // set buffers IC's to output mode.
   }
 }
 
 void latchDataWord(){
-    //delay(500);
+    digitalWrite(44, LOW); //Write Enable to Memory defaults to active low.
+    delayMicroseconds(20);
     digitalWrite(40, LOW);
-    //delay(500);
+    delay(7);  //Large delay to accommadate minimum write pulse (CE* clk) of 7ms for fujitsu 28c64. consider amtel 28c256 devices. 
     digitalWrite(40, HIGH);
-    //delay(500);
+    delayMicroseconds(20);
+    digitalWrite(44, HIGH); //Write Enable to Memory defaults to negated high.
 }
 
 boolean isEven(int x){ 
